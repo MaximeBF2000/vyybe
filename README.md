@@ -15,21 +15,22 @@
 
 ### Claude Code (desktop app or terminal)
 ```bash
-claude plugin marketplace add <path-or-git-url-of-this-repo>
+claude plugin marketplace add MaximeBF2000/vyybe
 ```
 ```bash
 claude plugin install vyybe@vyybe
 ```
-Or inside a session: `/plugin marketplace add …` then `/plugin install vyybe@vyybe`.
+Or inside a session: `/plugin marketplace add MaximeBF2000/vyybe` then `/plugin install vyybe@vyybe`. Restart the app (or run `/reload-plugins`) after installing.
+Update later with `claude plugin marketplace update vyybe`.
 
 ### Codex (desktop app or CLI)
 ```bash
-codex plugin marketplace add <path-or-git-url-of-this-repo>
+codex plugin marketplace add MaximeBF2000/vyybe
 ```
 ```bash
 codex plugin add vyybe@vyybe
 ```
-Restart the app after installing.
+Restart the app after installing. Update later with `codex plugin marketplace upgrade vyybe`.
 
 ### Requirements
 - macOS (Windows/Linux: experimental).
