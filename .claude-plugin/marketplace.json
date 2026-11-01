@@ -1,0 +1,14 @@
+{
+  "name": "vyybe",
+  "owner": { "name": "Vyybe" },
+  "metadata": { "description": "Vyybe — on-brand marketing visuals made in chat." },
+  "plugins": [
+    {
+      "name": "vyybe",
+      "source": "./plugins/vyybe",
+      "description": "Turn ideas into on-brand marketing visuals — carousels, posts, stories, thumbnails, ads — edit in chat and download.",
+      "version": "0.1.0",
+      "category": "design"
+    }
+  ]
+}

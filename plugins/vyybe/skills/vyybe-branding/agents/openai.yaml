@@ -1,0 +1,4 @@
+interface:
+  display_name: "My branding"
+  short_description: "Save your colors, fonts, logo and style"
+  default_prompt: "Set up my branding"

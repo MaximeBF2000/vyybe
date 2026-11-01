@@ -1,0 +1,4 @@
+interface:
+  display_name: "Set up Vyybe"
+  short_description: "Get started, enable image generation"
+  default_prompt: "Help me set up Vyybe"

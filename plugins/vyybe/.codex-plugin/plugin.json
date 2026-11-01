@@ -1,0 +1,26 @@
+{
+  "name": "vyybe",
+  "version": "0.1.0",
+  "description": "Turn ideas into on-brand marketing visuals — carousels, posts, stories, YouTube thumbnails, ads — edit them in the chat and download PNG, JPG or PDF.",
+  "author": { "name": "Vyybe" },
+  "license": "UNLICENSED",
+  "keywords": ["design", "marketing", "social media", "carousel", "instagram", "linkedin", "youtube thumbnail", "branding", "ads"],
+  "skills": "./skills/",
+  "mcpServers": "./mcp.codex.json",
+  "interface": {
+    "displayName": "Vyybe",
+    "shortDescription": "On-brand social & marketing visuals, made in chat",
+    "longDescription": "Vyybe turns your ideas into polished Instagram and LinkedIn carousels, posts, stories, YouTube thumbnails and ad creatives. It remembers your branding, lets you pick a style visually, and opens an in-chat studio where you can edit text, colors and layout and download PNG, JPG, PDF or ZIP. Everything stays on your computer.",
+    "developerName": "Vyybe",
+    "category": "Creativity",
+    "capabilities": ["Read", "Write"],
+    "defaultPrompt": [
+      "Make a 6-slide Instagram carousel about how I use AI to plan my week",
+      "Design 3 YouTube thumbnail options for my video \"I quit my job to build in public\"",
+      "Set up my branding from my website"
+    ],
+    "brandColor": "#6D4AFF",
+    "composerIcon": "./assets/icon.png",
+    "logo": "./assets/logo.png"
+  }
+}

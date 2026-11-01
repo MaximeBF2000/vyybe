@@ -1,0 +1,27 @@
+{
+  "mcpServers": {
+    "vyybe": {
+      "command": "sh",
+      "args": [
+        "./server/launch.sh"
+      ],
+      "cwd": ".",
+      "env_vars": [
+        "VYYBE_HOME",
+        "VYYBE_NO_BROWSER",
+        "VYYBE_NODE",
+        "VYYBE_CHROME",
+        "OPENAI_API_KEY",
+        "GEMINI_API_KEY",
+        "GOOGLE_API_KEY",
+        "FAL_KEY",
+        "REPLICATE_API_TOKEN",
+        "PEXELS_API_KEY",
+        "UNSPLASH_ACCESS_KEY"
+      ],
+      "startup_timeout_sec": 120,
+      "tool_timeout_sec": 600,
+      "default_tools_approval_mode": "approve"
+    }
+  }
+}

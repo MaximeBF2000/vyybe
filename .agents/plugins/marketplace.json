@@ -1,0 +1,12 @@
+{
+  "name": "vyybe",
+  "interface": { "displayName": "Vyybe" },
+  "plugins": [
+    {
+      "name": "vyybe",
+      "source": { "source": "local", "path": "./plugins/vyybe" },
+      "policy": { "installation": "AVAILABLE", "authentication": "ON_INSTALL" },
+      "category": "Creativity"
+    }
+  ]
+}

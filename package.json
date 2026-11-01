@@ -1,0 +1,40 @@
+{
+  "name": "vyybe",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Vyybe: on-brand marketing visuals from Codex and Claude Code",
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "typecheck": "tsc --noEmit",
+    "test": "node --import tsx --test tests/*.test.ts",
+    "dev:studio": "node scripts/build.mjs --watch"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/client": "^2.4.0",
+    "@modelcontextprotocol/core": "^2.4.0",
+    "@modelcontextprotocol/ext-apps": "^2.0.4",
+    "@modelcontextprotocol/server": "^2.4.0",
+    "node-html-parser": "^9.0.6",
+    "tailwindcss": "^4.3.3",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.6",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@vitejs/plugin-react": "^6.1.2",
+    "esbuild": "^0.28.2",
+    "lucide-static": "^1.66.0",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
+    "simple-icons": "^16.36.0",
+    "tsx": "^4.23.15",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.5",
+    "vite-plugin-singlefile": "^2.3.4"
+  }
+}

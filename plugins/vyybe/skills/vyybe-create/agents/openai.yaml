@@ -1,0 +1,4 @@
+interface:
+  display_name: "Create visuals"
+  short_description: "Carousels, posts, thumbnails, ads — on brand"
+  default_prompt: "Make a 6-slide Instagram carousel about "

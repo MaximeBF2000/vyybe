@@ -1,0 +1,11 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
+  "name": "vyybe",
+  "displayName": "Vyybe",
+  "version": "0.1.0",
+  "description": "Turn ideas into on-brand marketing visuals — Instagram & LinkedIn carousels, posts, stories, YouTube thumbnails, ads — then edit them right in the chat and download PNG, JPG or PDF. Saves your branding so everything stays consistent. Local-first.",
+  "author": { "name": "Vyybe" },
+  "license": "UNLICENSED",
+  "keywords": ["design", "marketing", "social media", "carousel", "instagram", "linkedin", "youtube thumbnail", "branding", "ads"],
+  "mcpServers": "./mcp.claude.json"
+}
