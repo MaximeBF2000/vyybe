@@ -18,7 +18,11 @@ async function main() {
   log("tool result", toolResult.structuredContent ?? toolResult);
   const res = await rpc("resources/read", { uri: q.get("uri") });
   let html: string = res.contents[0].text;
-  html = html.replace("<head>", `<head><meta http-equiv="Content-Security-Policy" content="${CSP}">`);
+  // honorcsp=1: allow the origins the resource declares in _meta.ui.csp.connectDomains (like a compliant host)
+  const declared: string[] = q.get("honorcsp") ? res.contents[0]._meta?.ui?.csp?.connectDomains ?? [] : [];
+  const csp = declared.length ? CSP.replace("connect-src 'none'", `connect-src ${declared.join(" ")}`) : CSP;
+  log("csp", csp);
+  html = html.replace("<head>", `<head><meta http-equiv="Content-Security-Policy" content="${csp}">`);
   const iframe = document.createElement("iframe");
   iframe.setAttribute("sandbox", q.get("sameorigin") ? "allow-scripts allow-forms allow-same-origin" : "allow-scripts allow-forms");
   iframe.style.cssText = "width:860px;height:700px;border:1px solid #444;border-radius:12px;background:#fff";
@@ -27,6 +31,11 @@ async function main() {
     hostContext: { theme: "dark", displayMode: "inline", availableDisplayModes: ["inline", "fullscreen"], containerDimensions: { width: 860, maxHeight: 900 }, platform: "desktop" } as any,
   });
   bridge.oncalltool = async (params) => {
+    // noipc=1 reproduces Claude's desktop host refusing app → server tool calls
+    if (q.get("noipc")) {
+      log("app → tool REFUSED (noipc)", params.name);
+      throw new Error("IPC not available for MCP tool call");
+    }
     const r = await rpc("tools/call", params);
     log("app → tool", params.name, r.isError ? "ERROR " + JSON.stringify(r.content) : "ok");
     return r;

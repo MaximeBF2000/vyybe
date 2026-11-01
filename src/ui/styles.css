@@ -181,3 +181,6 @@ input, select, textarea { font: inherit; color: inherit; }
 .vy-prov input { flex: 1; min-width: 160px; height: 32px; border-radius: 8px; border: 1px solid var(--vy-border); background: var(--vy-bg2); padding: 0 10px; outline: none; }
 .vy-badge { font-size: 11px; padding: 2px 8px; border-radius: 99px; background: var(--vy-bg2); color: var(--vy-text2); }
 .vy-badge.on { background: rgba(48, 164, 108, 0.15); color: var(--vy-ok); }
+
+.vy-readonly { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; background: var(--vy-accent-soft); border-bottom: 1px solid var(--vy-border); padding: 8px 12px; font-size: 12.5px; }
+.vy-readonly code { font-size: 11px; color: var(--vy-text3); user-select: all; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }

@@ -6,7 +6,7 @@ import { Icon } from "./Icon";
 
 interface Opt { id: string; label: string; description?: string; width: number; height: number; html: string; css: string }
 
-export function Picker({ t, pickerId }: { t: Transport; pickerId: string }) {
+export function Picker({ t, pickerId, initialData }: { t: Transport; pickerId: string; initialData?: any }) {
   const [data, setData] = useState<{ picker: { title: string; question?: string; multiple: boolean; answer?: any }; options: Opt[] } | null>(null);
   const [sel, setSel] = useState<string[]>([]);
   const [note, setNote] = useState("");
@@ -18,7 +18,7 @@ export function Picker({ t, pickerId }: { t: Transport; pickerId: string }) {
   useEffect(() => {
     (async () => {
       try {
-        const r: any = await t.call("picker_load", { pickerId });
+        const r: any = initialData ?? (await t.call("picker_load", { pickerId }));
         await registerFonts(r.fonts ?? []);
         setData(r);
         if (r.picker.answer) {
@@ -54,7 +54,8 @@ export function Picker({ t, pickerId }: { t: Transport; pickerId: string }) {
     if (!sel.length) return;
     setState("sending");
     try {
-      await t.call("picker_submit", { pickerId, selected: sel, note: note || undefined });
+      // Recording the choice server-side is a bonus; the chat message is what matters.
+      await t.call("picker_submit", { pickerId, selected: sel, note: note || undefined }).catch(() => null);
       const chosen = data.options.filter((o) => sel.includes(o.id));
       const text = `I pick ${chosen.map((o) => `"${o.label}" (${o.id})`).join(" and ")}.${note ? ` Note: ${note}` : ""}`;
       const sent = t.sendMessage ? await t.sendMessage(text) : false;
@@ -96,7 +97,7 @@ export function Picker({ t, pickerId }: { t: Transport; pickerId: string }) {
         {state === "sent" ? (
           <div className="vy-hint" style={{ flex: 1 }}><Icon name="check" size={14} /> Choice sent to the assistant.</div>
         ) : state === "saved" ? (
-          <div className="vy-hint" style={{ flex: 1 }}>Choice saved. Tell the assistant “go with my choice” to continue.</div>
+          <div className="vy-hint" style={{ flex: 1 }}>Tell the assistant: “I pick {data.options.filter((o) => sel.includes(o.id)).map((o) => o.label).join(" and ")}”{note ? ` — ${note}` : ""}.</div>
         ) : (
           <>
             <input placeholder="Anything to tweak? (optional)" value={note} onChange={(e) => setNote(e.target.value)} onKeyDown={(e) => e.key === "Enter" && submit()} />

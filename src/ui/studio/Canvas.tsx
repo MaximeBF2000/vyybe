@@ -25,6 +25,7 @@ export function Canvas({
   apiRef,
   tick,
   onMount,
+  readOnly,
 }: {
   frame: FrameData;
   css: string;
@@ -34,6 +35,7 @@ export function Canvas({
   apiRef: MutableRefObject<CanvasApi | null>;
   tick: number;
   onMount?: () => void;
+  readOnly?: boolean;
 }) {
   const stageRef = useRef<HTMLDivElement>(null);
   const hostRef = useRef<HTMLDivElement>(null);
@@ -139,6 +141,7 @@ export function Canvas({
   const targetOf = (e: React.PointerEvent | React.MouseEvent) => (e.nativeEvent.composedPath()[0] as Element) ?? null;
 
   const onPointerDown = (e: React.PointerEvent) => {
+    if (readOnly) return;
     const frameEl = frameElRef.current;
     if (!frameEl || e.button !== 0) return;
     const target = targetOf(e);
@@ -210,7 +213,7 @@ export function Canvas({
     const frameEl = frameElRef.current;
     if (!frameEl) return;
     if (!d) {
-      if (editingRef.current) return;
+      if (editingRef.current || readOnly) return;
       const target = targetOf(e);
       const h = frameEl.contains(target) ? pickElement(target, frameEl, selected, e.metaKey || e.ctrlKey) : null;
       if (h !== hover) setHover(h);
@@ -267,6 +270,7 @@ export function Canvas({
   };
 
   const onDoubleClick = (e: React.MouseEvent) => {
+    if (readOnly) return;
     const frameEl = frameElRef.current;
     if (!frameEl) return;
     const root = frameEl.getRootNode() as ShadowRoot;

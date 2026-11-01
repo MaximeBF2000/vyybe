@@ -12,6 +12,13 @@ Tested 2026-11-01 on macOS (Apple Silicon), Node 26 / bundled-runtime fallback, 
 | Browser fallback studio | ✅ tested (all features) | ✅ (same server) | n/a | ✅ |
 | Picker choice back to chat | via user message (browser fallback: user says "go with my choice"; `get_choice` reads it) | same | ✅ `ui/message` | ✅ when the host supports `ui/message` |
 
+## Claude desktop app (Code tab)
+Renders the MCP App, but refuses the view's own tool calls for local plugin servers ("IPC not available for MCP tool call"). Vyybe handles it in three layers:
+1. `open_studio` / `show_options` ship everything the view needs in the tool result's `_meta["vyybe/data"]` (never shown to the model), so it renders without calling back.
+2. Saves/exports then go straight to the server's loopback bridge (`http://127.0.0.1:<port>`, token-authenticated, CORS + Private Network Access headers), declared in the resource's `_meta.ui.csp.connectDomains`.
+3. If the host also blocks that connection, the studio switches to a clean preview with an "Open the full editor" button (same studio in the browser).
+Picker choices go back through `ui/message`, which doesn't need a tool call.
+
 ## Notes
 - The UI is a single self-contained HTML file (no CDN), works under the MCP Apps default CSP (`connect-src 'none'`, `img-src data:`): fonts are registered with the FontFace API from bytes, images are data URIs, frame CSS lives in shadow roots.
 - Tool results: model-facing tools return text + images only (Claude Code shows `structuredContent` *instead of* text when present); UI tools also repeat their message inside `structuredContent.message`.

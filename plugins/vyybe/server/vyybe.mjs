@@ -47414,31 +47414,45 @@ async function ensureServer() {
         res.end(html);
         return;
       }
+      const cors = {
+        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Methods": "POST, OPTIONS",
+        "Access-Control-Allow-Headers": "Content-Type, X-Vyybe-Token",
+        "Access-Control-Allow-Private-Network": "true",
+        "Access-Control-Max-Age": "600"
+      };
+      if (req.method === "OPTIONS" && url2.pathname === "/api/call") {
+        res.writeHead(204, cors).end();
+        return;
+      }
       if (req.method === "POST" && url2.pathname === "/api/call") {
-        const origin = req.headers.origin;
-        if (origin && origin !== `http://127.0.0.1:${port}` && origin !== `http://localhost:${port}`) {
-          res.writeHead(403).end("Bad origin");
-          return;
-        }
-        if (req.headers["x-vyybe-token"] !== token) {
-          res.writeHead(401).end("Bad token");
-          return;
-        }
         const chunks = [];
         let size = 0;
         for await (const c2 of req) {
           size += c2.length;
           if (size > 6e7) {
-            res.writeHead(413).end("Too large");
+            res.writeHead(413, cors).end("Too large");
             return;
           }
           chunks.push(c2);
         }
-        const { name, args } = JSON.parse(Buffer.concat(chunks).toString("utf8"));
+        let body;
+        try {
+          body = JSON.parse(Buffer.concat(chunks).toString("utf8"));
+        } catch {
+          res.writeHead(400, cors).end("Bad JSON");
+          return;
+        }
+        const given = req.headers["x-vyybe-token"] ?? body.token;
+        if (given !== token) {
+          res.writeHead(401, cors).end("Bad token");
+          return;
+        }
+        const { name, args } = body;
         const handlers = handlersRef?.() ?? {};
         const h3 = handlers[name];
         if (!h3) {
-          res.writeHead(404).end("Unknown tool");
+          res.writeHead(404, cors).end("Unknown tool");
           return;
         }
         let result;
@@ -47447,7 +47461,7 @@ async function ensureServer() {
         } catch (err) {
           result = { isError: true, content: [{ type: "text", text: `${err.code ?? "ERROR"}: ${err.message}` }] };
         }
-        res.writeHead(200, { "Content-Type": "application/json", "Cache-Control": "no-store" });
+        res.writeHead(200, { "Content-Type": "application/json", "Cache-Control": "no-store", ...cors });
         res.end(JSON.stringify(result));
         return;
       }
@@ -47476,6 +47490,13 @@ async function openInBrowser(url2) {
   const [cmd, args] = process.platform === "darwin" ? ["open", [url2]] : process.platform === "win32" ? ["cmd", ["/c", "start", "", url2]] : ["xdg-open", [url2]];
   execFile3(cmd, args, () => {
   });
+}
+async function bridgeInfo() {
+  const p2 = await ensureServer();
+  return { url: `http://127.0.0.1:${p2}`, token };
+}
+function bridgeOrigins() {
+  return port ? [`http://127.0.0.1:${port}`, `http://localhost:${port}`] : [];
 }
 
 // src/server/tools.ts
@@ -47507,8 +47528,10 @@ var FrameInput = external_exports.object({
   ...sizeFields
 });
 var PreviewMode = external_exports.enum(["sheet", "frames", "context", "none"]).optional().describe("sheet (default; thumbnails also get the feed view): one image of written frames; frames: one image each; context: in-feed mock (YouTube/Instagram) at real size; none: checks only");
-function uiOk(text, structured) {
-  return ok(text, { ...structured, message: text });
+async function uiOk(text, structured, data) {
+  const r = ok(text, { ...structured, message: text, bridge: await bridgeInfo().catch(() => null) });
+  if (data) r._meta = { "vyybe/data": data };
+  return r;
 }
 function issueLines(renders) {
   const lines = [];
@@ -47589,9 +47612,9 @@ function registerTools(server3) {
     server3,
     "Vyybe Studio",
     UI_URI,
-    { description: "Preview, edit and export Vyybe creations; pick between visual options.", _meta: { ui: { prefersBorder: false, csp: { connectDomains: [], resourceDomains: [] } } } },
+    { description: "Preview, edit and export Vyybe creations; pick between visual options.", _meta: { ui: { prefersBorder: false, csp: { connectDomains: bridgeOrigins(), resourceDomains: [] } } } },
     async () => ({
-      contents: [{ uri: UI_URI, mimeType: L, text: studioHtml(), _meta: { ui: { prefersBorder: false, csp: { connectDomains: [], resourceDomains: [] } } } }]
+      contents: [{ uri: UI_URI, mimeType: L, text: studioHtml(), _meta: { ui: { prefersBorder: false, csp: { connectDomains: bridgeOrigins(), resourceDomains: [] } } } }]
     })
   );
   server3.registerTool(
@@ -47665,7 +47688,7 @@ function registerTools(server3) {
     wrap(async () => {
       const url2 = await studioUrl({ view: "settings" });
       if (!supportsUi(server3)) await openInBrowser(url2);
-      return uiOk(`Vyybe settings are open${supportsUi(server3) ? " below" : " in the browser"}. Browser link (works while this chat is open): ${url2}`, { view: "settings" });
+      return await uiOk(`Vyybe settings are open${supportsUi(server3) ? " below" : " in the browser"}. Browser link (works while this chat is open): ${url2}`, { view: "settings", browserUrl: url2 });
     })
   );
   server3.registerTool(
@@ -47929,11 +47952,13 @@ ${r.files.map((f2) => `  ${f2.display} (${formatBytes(f2.bytes)})`).join("\n")}`
       const url2 = await studioUrl({ view: "studio", projectId, frameId });
       const embedded = supportsUi(server3);
       if (!embedded) await openInBrowser(url2);
-      return uiOk(
+      const bundle = await studioBundle(projectId).catch(() => null);
+      return await uiOk(
         `${projectSummary(p2)}
 Vyybe Studio is open ${embedded ? "in the chat" : "in the user's browser"}. If it doesn't show up, give the user this link (works while this chat session is running): ${url2}
 Project folder: ${tildify(projectDir(projectId))}`,
-        { view: "studio", projectId, frameId: frameId ?? null }
+        { view: "studio", projectId, frameId: frameId ?? null, browserUrl: url2 },
+        bundle
       );
     })
   );
@@ -47987,10 +48012,12 @@ Project folder: ${tildify(projectDir(projectId))}`,
       const url2 = await studioUrl({ view: "picker", pickerId: picker.id });
       const embedded = supportsUi(server3);
       if (!embedded) await openInBrowser(url2);
-      return uiOk(
+      const pickerData = await appHandlers().picker_load.handler({ pickerId: picker.id }).then((r) => r.structuredContent).catch(() => null);
+      return await uiOk(
         `Showing ${options.length} options (picker ${picker.id}) ${embedded ? "in the chat" : "in the browser"}: ${options.map((o2) => `${o2.id} = ${o2.label}`).join("; ")}.
 Wait for the user's choice (it arrives as their next message). If they reply in text instead, use that. Link if it doesn't display: ${url2}`,
-        { view: "picker", pickerId: picker.id }
+        { view: "picker", pickerId: picker.id, browserUrl: url2 },
+        pickerData
       );
     })
   );
@@ -48420,6 +48447,7 @@ Always follow the "vyybe" skill workflow when creating or editing visuals. Typic
 process.on("uncaughtException", (e2) => console.error("[vyybe] uncaught", e2));
 process.on("unhandledRejection", (e2) => console.error("[vyybe] unhandled", e2));
 var server2 = new McpServer({ name: "vyybe", version: VERSION, title: "Vyybe" }, { capabilities: { tools: {}, resources: {} }, instructions: INSTRUCTIONS });
+await ensureServer().catch((e2) => console.error("[vyybe] bridge failed to start", e2));
 registerTools(server2);
 setHttpHandlers(() => appHandlers());
 var transport = new StdioServerTransport();

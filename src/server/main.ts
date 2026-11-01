@@ -1,7 +1,7 @@
 import { McpServer } from "@modelcontextprotocol/server";
 import { StdioServerTransport } from "@modelcontextprotocol/server/stdio";
 import { registerTools, appHandlers, VERSION } from "./tools.js";
-import { setHttpHandlers } from "./http.js";
+import { setHttpHandlers, ensureServer } from "./http.js";
 import { shutdownChrome } from "../core/chrome.js";
 
 const INSTRUCTIONS = `Vyybe turns ideas into on-brand marketing visuals (Instagram/LinkedIn carousels, posts, stories, YouTube thumbnails, ads, slides, banners).
@@ -13,6 +13,8 @@ process.on("uncaughtException", (e) => console.error("[vyybe] uncaught", e));
 process.on("unhandledRejection", (e) => console.error("[vyybe] unhandled", e));
 
 const server = new McpServer({ name: "vyybe", version: VERSION, title: "Vyybe" } as any, { capabilities: { tools: {}, resources: {} }, instructions: INSTRUCTIONS } as any);
+// Start the loopback bridge first so the studio's CSP can declare its exact origin.
+await ensureServer().catch((e) => console.error("[vyybe] bridge failed to start", e));
 registerTools(server);
 setHttpHandlers(() => appHandlers());
 

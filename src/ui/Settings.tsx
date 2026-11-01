@@ -1,10 +1,11 @@
 import { useEffect, useState } from "react";
 import type { Transport } from "./transport";
 import { Icon } from "./Icon";
+import { OpenInBrowser } from "./studio/Studio";
 
 interface Prov { id: string; label: string; kind: "image" | "photo"; url: string; configured: boolean }
 
-export function Settings({ t }: { t: Transport }) {
+export function Settings({ t, browserUrl }: { t: Transport; browserUrl?: string }) {
   const [data, setData] = useState<{ providers: Prov[]; imageProvider: string; renderer: boolean; library: string } | null>(null);
   const [keys, setKeys] = useState<Record<string, string>>({});
   const [saved, setSaved] = useState<string | null>(null);
@@ -28,6 +29,7 @@ export function Settings({ t }: { t: Transport }) {
     }
   };
 
+  if (!data && err && t.offline) return <OpenInBrowser t={t} url={browserUrl} reason="Settings can't open inside this app." />;
   if (!data) return <div className="vy-center">{err ?? <div><div className="vy-spinner" />Loading settings…</div>}</div>;
 
   const section = (kind: "image" | "photo", title: string, hint: string) => (

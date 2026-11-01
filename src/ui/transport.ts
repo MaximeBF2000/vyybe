@@ -1,14 +1,22 @@
 import { App } from "@modelcontextprotocol/ext-apps";
 
 /** What the UI was opened for. */
-export type Boot =
+export type Boot = (
   | { view: "studio"; projectId: string; frameId?: string | null }
   | { view: "picker"; pickerId: string }
   | { view: "settings" }
-  | { view: "loading" };
+  | { view: "loading" }
+) & {
+  /** Payload shipped inside the tool result so the view renders without calling back. */
+  data?: any;
+  /** Same view in the user's browser (full editing even when the host blocks app tool calls). */
+  browserUrl?: string;
+};
 
 export interface Transport {
   mode: "embedded" | "browser";
+  /** True once neither the host nor the local bridge can reach the Vyybe server. */
+  offline: boolean;
   call<T = any>(name: string, args: Record<string, unknown>): Promise<T>;
   /** Send a message to the chat as the user (embedded hosts that support it). */
   sendMessage?(text: string): Promise<boolean>;
@@ -26,6 +34,11 @@ class ToolError extends Error {
   constructor(message: string, public code?: string) {
     super(message);
   }
+}
+
+/** The server couldn't be reached at all (not a tool-level error). */
+export class OfflineError extends Error {
+  code = "OFFLINE";
 }
 
 function unwrap(result: any): any {
@@ -53,6 +66,7 @@ export async function connectBrowser(): Promise<{ transport: Transport; boot: Bo
   window.matchMedia?.("(prefers-color-scheme: dark)").addEventListener?.("change", () => themeListeners.forEach((f) => f(systemTheme())));
   const transport: Transport = {
     mode: "browser",
+    offline: false,
     async call(name, args) {
       const res = await fetch("/api/call", { method: "POST", headers: { "Content-Type": "application/json", "X-Vyybe-Token": cfg.token }, body: JSON.stringify({ name, args }) });
       if (!res.ok) throw new ToolError(res.status === 401 || res.status === 403 ? "This studio link expired — ask the assistant to open the studio again." : `Server error ${res.status}`);
@@ -90,15 +104,19 @@ export async function connectEmbedded(onBoot: (b: Boot) => void): Promise<Transp
     booted = true;
     onBoot(b);
   };
-  app.ontoolinput = (p: any) => {
-    const args = p?.arguments ?? {};
-    if (args.projectId && !args.title) boot({ view: "studio", projectId: args.projectId, frameId: args.frameId });
-  };
+  let bridge: { url: string; token: string } | null = null;
   app.ontoolresult = (r: any) => {
     const s = r?.structuredContent ?? {};
-    if (s.view === "picker") boot({ view: "picker", pickerId: s.pickerId });
-    else if (s.view === "settings") boot({ view: "settings" });
-    else if (s.view === "studio" && s.projectId) boot({ view: "studio", projectId: s.projectId, frameId: s.frameId });
+    if (s.bridge?.url) bridge = s.bridge;
+    const extra = { data: r?._meta?.["vyybe/data"], browserUrl: s.browserUrl };
+    if (s.view === "picker") {
+      booted = false;
+      boot({ view: "picker", pickerId: s.pickerId, ...extra });
+    } else if (s.view === "settings") boot({ view: "settings", ...extra });
+    else if (s.view === "studio" && s.projectId) {
+      booted = false;
+      boot({ view: "studio", projectId: s.projectId, frameId: s.frameId, ...extra });
+    }
   };
   app.onhostcontextchanged = (ctx: any) => {
     if (ctx?.theme) themeListeners.forEach((f) => f(ctx.theme));
@@ -112,10 +130,41 @@ export async function connectEmbedded(onBoot: (b: Boot) => void): Promise<Transp
   const caps: any = app.getHostCapabilities() ?? {};
   let displayMode: string = ctx.displayMode ?? "inline";
 
+  // Some hosts render MCP Apps but don't proxy the view's tool calls (e.g. "IPC not available").
+  // Then talk to the Vyybe server's loopback bridge directly (declared in the resource CSP).
+  let route: "host" | "bridge" = "host";
+  const viaBridge = async (name: string, args: Record<string, unknown>) => {
+    if (!bridge) throw new OfflineError("No connection to Vyybe from this app.");
+    let res: Response;
+    try {
+      res = await fetch(`${bridge.url}/api/call`, { method: "POST", headers: { "Content-Type": "text/plain" }, body: JSON.stringify({ token: bridge.token, name, args }) });
+    } catch {
+      throw new OfflineError("This app blocks Vyybe's connection.");
+    }
+    if (!res.ok) throw new OfflineError(`Vyybe bridge error ${res.status}`);
+    return unwrap(await res.json());
+  };
   const transport: Transport = {
     mode: "embedded",
+    offline: false,
     async call(name, args) {
-      return unwrap(await app.callServerTool({ name, arguments: args }));
+      if (route === "host") {
+        let result: any;
+        try {
+          result = await app.callServerTool({ name, arguments: args });
+        } catch {
+          route = "bridge";
+        }
+        if (route === "host") return unwrap(result);
+      }
+      try {
+        const r = await viaBridge(name, args);
+        transport.offline = false;
+        return r;
+      } catch (e) {
+        if (e instanceof OfflineError) transport.offline = true;
+        throw e;
+      }
     },
     async sendMessage(text) {
       try {

@@ -40,9 +40,9 @@ function App() {
   if (!t || boot.view === "loading") return <div className={cls}><div className="vy-center"><div><div className="vy-spinner" />Opening Vyybe…</div></div></div>;
   return (
     <div className={cls} style={boot.view === "picker" ? { height: "auto", minHeight: 420, maxHeight: fullscreen || t.mode === "browser" ? undefined : 760 } : undefined}>
-      {boot.view === "studio" && <Studio t={t} projectId={boot.projectId} initialFrame={boot.frameId} fullscreen={fullscreen} />}
-      {boot.view === "picker" && <Picker t={t} pickerId={boot.pickerId} />}
-      {boot.view === "settings" && <Settings t={t} />}
+      {boot.view === "studio" && <Studio key={boot.projectId} t={t} projectId={boot.projectId} initialFrame={boot.frameId} initialData={boot.data} browserUrl={boot.browserUrl} fullscreen={fullscreen} />}
+      {boot.view === "picker" && <Picker key={boot.pickerId} t={t} pickerId={boot.pickerId} initialData={boot.data} />}
+      {boot.view === "settings" && <Settings t={t} browserUrl={boot.browserUrl} />}
     </div>
   );
 }

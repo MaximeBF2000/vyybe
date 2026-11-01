@@ -23,7 +23,7 @@ import { PROVIDERS, providerStatus, setKey, readConfig, writeConfig, type Provid
 import { rendererStatus, installHeadlessShell } from "../core/chrome.js";
 import { createPicker, loadPicker, answerPicker, type PickerOption } from "../core/pickers.js";
 import { ok, wrap, mwrap, type ToolResult } from "./results.js";
-import { studioUrl, openInBrowser } from "./http.js";
+import { studioUrl, openInBrowser, bridgeInfo, bridgeOrigins } from "./http.js";
 
 export const VERSION = "0.1.0";
 export const UI_URI = `ui://vyybe/${VERSION}/studio.html`;
@@ -67,8 +67,12 @@ const PreviewMode = z.enum(["sheet", "frames", "context", "none"]).optional().de
 // ---------- helpers ----------
 
 /** UI tools keep structuredContent (the view needs it) and repeat the message there for hosts that only show structured output. */
-function uiOk(text: string, structured: Record<string, unknown>): ToolResult {
-  return ok(text, { ...structured, message: text });
+async function uiOk(text: string, structured: Record<string, unknown>, data?: unknown): Promise<ToolResult> {
+  // The bridge lets the view reach us when the host can't proxy its tool calls; `data` is the
+  // payload to render immediately (kept in _meta so it never lands in the model's context).
+  const r = ok(text, { ...structured, message: text, bridge: await bridgeInfo().catch(() => null) });
+  if (data) r._meta = { "vyybe/data": data };
+  return r;
 }
 
 function issueLines(renders: FrameRender[]): string {
@@ -160,9 +164,9 @@ export function registerTools(server: McpServer) {
     server,
     "Vyybe Studio",
     UI_URI,
-    { description: "Preview, edit and export Vyybe creations; pick between visual options.", _meta: { ui: { prefersBorder: false, csp: { connectDomains: [], resourceDomains: [] } } } },
+    { description: "Preview, edit and export Vyybe creations; pick between visual options.", _meta: { ui: { prefersBorder: false, csp: { connectDomains: bridgeOrigins(), resourceDomains: [] } } } },
     async () => ({
-      contents: [{ uri: UI_URI, mimeType: RESOURCE_MIME_TYPE, text: studioHtml(), _meta: { ui: { prefersBorder: false, csp: { connectDomains: [], resourceDomains: [] } } } }],
+      contents: [{ uri: UI_URI, mimeType: RESOURCE_MIME_TYPE, text: studioHtml(), _meta: { ui: { prefersBorder: false, csp: { connectDomains: bridgeOrigins(), resourceDomains: [] } } } }],
     }),
   );
 
@@ -243,7 +247,7 @@ export function registerTools(server: McpServer) {
     wrap(async () => {
       const url = await studioUrl({ view: "settings" });
       if (!supportsUi(server)) await openInBrowser(url);
-      return uiOk(`Vyybe settings are open${supportsUi(server) ? " below" : " in the browser"}. Browser link (works while this chat is open): ${url}`, { view: "settings" });
+      return await uiOk(`Vyybe settings are open${supportsUi(server) ? " below" : " in the browser"}. Browser link (works while this chat is open): ${url}`, { view: "settings", browserUrl: url });
     }),
   );
 
@@ -514,9 +518,11 @@ export function registerTools(server: McpServer) {
       const url = await studioUrl({ view: "studio", projectId, frameId });
       const embedded = supportsUi(server);
       if (!embedded) await openInBrowser(url);
-      return uiOk(
+      const bundle = await studioBundle(projectId).catch(() => null);
+      return await uiOk(
         `${projectSummary(p)}\nVyybe Studio is open ${embedded ? "in the chat" : "in the user's browser"}. If it doesn't show up, give the user this link (works while this chat session is running): ${url}\nProject folder: ${tildify(store.projectDir(projectId))}`,
-        { view: "studio", projectId, frameId: frameId ?? null },
+        { view: "studio", projectId, frameId: frameId ?? null, browserUrl: url },
+        bundle,
       );
     }),
   );
@@ -577,9 +583,11 @@ export function registerTools(server: McpServer) {
       const url = await studioUrl({ view: "picker", pickerId: picker.id });
       const embedded = supportsUi(server);
       if (!embedded) await openInBrowser(url);
-      return uiOk(
+      const pickerData = await appHandlers().picker_load.handler({ pickerId: picker.id }).then((r) => r.structuredContent).catch(() => null);
+      return await uiOk(
         `Showing ${options.length} options (picker ${picker.id}) ${embedded ? "in the chat" : "in the browser"}: ${options.map((o) => `${o.id} = ${o.label}`).join("; ")}.\nWait for the user's choice (it arrives as their next message). If they reply in text instead, use that. Link if it doesn't display: ${url}`,
-        { view: "picker", pickerId: picker.id },
+        { view: "picker", pickerId: picker.id, browserUrl: url },
+        pickerData,
       );
     }),
   );

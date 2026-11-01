@@ -3,7 +3,7 @@ import { FrameView } from "../FrameView";
 import { Icon } from "../Icon";
 import type { FrameData } from "./Studio";
 
-export function Filmstrip({ frames, css, activeId, onSelect, onReorder, onDuplicate, onDelete }: {
+export function Filmstrip({ frames, css, activeId, onSelect, onReorder, onDuplicate, onDelete, readOnly }: {
   frames: FrameData[];
   css: string;
   activeId: string | null;
@@ -11,6 +11,7 @@ export function Filmstrip({ frames, css, activeId, onSelect, onReorder, onDuplic
   onReorder: (order: string[]) => void;
   onDuplicate: (id: string) => void;
   onDelete: (id: string) => void;
+  readOnly?: boolean;
 }) {
   const [dragId, setDragId] = useState<string | null>(null);
   const [dropAt, setDropAt] = useState<number | null>(null);
@@ -37,7 +38,7 @@ export function Filmstrip({ frames, css, activeId, onSelect, onReorder, onDuplic
             {dropAt === i && dragId && <div className="vy-drop-marker" />}
             <div
               className={`vy-thumb ${f.id === activeId ? "active" : ""} ${dragId === f.id ? "dragging" : ""}`}
-              draggable
+              draggable={!readOnly}
               onDragStart={(e) => {
                 setDragId(f.id);
                 e.dataTransfer.effectAllowed = "move";
@@ -53,10 +54,10 @@ export function Filmstrip({ frames, css, activeId, onSelect, onReorder, onDuplic
               title={`${i + 1}. ${f.name}`}
             >
               <span className="num">{i + 1}</span>
-              <div className="menu" onClick={(e) => e.stopPropagation()}>
+              {!readOnly && <div className="menu" onClick={(e) => e.stopPropagation()}>
                 <button title="Duplicate" onClick={() => onDuplicate(f.id)}><Icon name="copy" /></button>
                 {frames.length > 1 && <button title="Delete" onClick={() => onDelete(f.id)}><Icon name="trash-2" /></button>}
-              </div>
+              </div>}
               <div className="clip"><FrameView html={f.html} css={css} width={f.width} height={f.height} scale={scale} /></div>
             </div>
           </div>

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Transport } from "../transport";
-import { ToolError } from "../transport";
+import { ToolError, OfflineError } from "../transport";
 import { registerFonts, serializeFrame } from "../frame";
 import { Icon } from "../Icon";
 import { Canvas, type CanvasApi } from "./Canvas";
@@ -29,7 +29,7 @@ export interface Bundle {
 
 type SaveState = "saved" | "saving" | "error" | "conflict";
 
-export function Studio({ t, projectId, initialFrame, fullscreen }: { t: Transport; projectId: string; initialFrame?: string | null; fullscreen: boolean }) {
+export function Studio({ t, projectId, initialFrame, initialData, browserUrl, fullscreen }: { t: Transport; projectId: string; initialFrame?: string | null; initialData?: Bundle; browserUrl?: string; fullscreen: boolean }) {
   const [bundle, setBundle] = useState<Bundle | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [activeId, setActiveId] = useState<string | null>(initialFrame ?? null);
@@ -42,6 +42,9 @@ export function Studio({ t, projectId, initialFrame, fullscreen }: { t: Transpor
   const [showExport, setShowExport] = useState(false);
   const [narrow, setNarrow] = useState(false);
   const [inspectorOpen, setInspectorOpen] = useState(true);
+  // Preview-only when this host can't reach the Vyybe server (no saving/exporting from inside the chat).
+  const [readOnly, setReadOnly] = useState(false);
+  const usedInitial = useRef(false);
   const rootRef = useRef<HTMLDivElement>(null);
   const canvasApi = useRef<CanvasApi | null>(null);
 
@@ -54,7 +57,11 @@ export function Studio({ t, projectId, initialFrame, fullscreen }: { t: Transpor
 
   const load = useCallback(
     async (keepActive?: string | null) => {
-      const b = (await t.call("studio_load", { projectId })) as Bundle;
+      let b: Bundle;
+      if (initialData && !usedInitial.current) {
+        usedInitial.current = true;
+        b = structuredClone(initialData);
+      } else b = (await t.call("studio_load", { projectId })) as Bundle;
       await registerFonts(b.fonts);
       knownRevision.current = b.project.revision;
       setBundle(b);
@@ -69,7 +76,19 @@ export function Studio({ t, projectId, initialFrame, fullscreen }: { t: Transpor
   );
 
   useEffect(() => {
-    load(initialFrame).catch((e) => setError(e.message));
+    load(initialFrame)
+      .then(async () => {
+        // Probe once: can this host reach the server (directly or via the bridge)?
+        try {
+          await t.call("studio_poll", { projectId, revision: -1 });
+        } catch (e) {
+          if (e instanceof OfflineError) setReadOnly(true);
+        }
+      })
+      .catch((e) => {
+        if (e instanceof OfflineError) setError("offline");
+        else setError(e.message);
+      });
   }, [load, initialFrame]);
 
   // responsive: inspector becomes a drawer when narrow
@@ -105,6 +124,11 @@ export function Studio({ t, projectId, initialFrame, fullscreen }: { t: Transpor
         knownRevision.current = r.projectRevision;
         editedFrames.current.add(frameId);
       } catch (e: any) {
+        if (e instanceof OfflineError) {
+          setReadOnly(true);
+          setSaveState("error");
+          return;
+        }
         if (e instanceof ToolError && e.code === "REVISION_CONFLICT") {
           setSaveState("conflict");
           setToast({
@@ -297,6 +321,7 @@ export function Studio({ t, projectId, initialFrame, fullscreen }: { t: Transpor
 
   const issues = useMemo(() => active?.missing ?? [], [active]);
 
+  if (error === "offline") return <OpenInBrowser t={t} url={browserUrl} reason="This app can't load the project inside the chat." />;
   if (error) return <div className="vy-center"><div><Icon name="triangle-alert" size={22} /><p>{error}</p></div></div>;
   if (!bundle) return <div className="vy-center"><div><div className="vy-spinner" />Loading your design…</div></div>;
   if (!bundle.frames.length) return <div className="vy-center">This project has no frames yet. Ask the assistant to create some.</div>;
@@ -310,31 +335,46 @@ export function Studio({ t, projectId, initialFrame, fullscreen }: { t: Transpor
           <span className="vy-logo-mark">V</span>
           <span title={bundle.project.name}>{bundle.project.name}</span>
         </div>
-        <span className={`vy-status ${saveState}`} title={saveState === "saved" ? "All changes saved to your computer" : undefined}>
-          <span className="dot" />
-          {saveState === "saved" ? "Saved" : saveState === "saving" ? "Saving…" : saveState === "conflict" ? "Conflict" : "Not saved"}
-        </span>
+        {readOnly ? (
+          <span className="vy-status" title="This app can't save edits from inside the chat">Preview</span>
+        ) : (
+          <span className={`vy-status ${saveState}`} title={saveState === "saved" ? "All changes saved to your computer" : undefined}>
+            <span className="dot" />
+            {saveState === "saved" ? "Saved" : saveState === "saving" ? "Saving…" : saveState === "conflict" ? "Conflict" : "Not saved"}
+          </span>
+        )}
         <div className="vy-spacer" />
-        <button className="vy-btn icon" title="Undo (⌘Z)" disabled={!h?.undo.length} onClick={() => applyHistory("undo")}><Icon name="undo-2" /></button>
-        <button className="vy-btn icon" title="Redo (⇧⌘Z)" disabled={!h?.redo.length} onClick={() => applyHistory("redo")}><Icon name="redo-2" /></button>
+        {!readOnly && <button className="vy-btn icon" title="Undo (⌘Z)" disabled={!h?.undo.length} onClick={() => applyHistory("undo")}><Icon name="undo-2" /></button>}
+        {!readOnly && <button className="vy-btn icon" title="Redo (⇧⌘Z)" disabled={!h?.redo.length} onClick={() => applyHistory("redo")}><Icon name="redo-2" /></button>}
         {bundle.frames.length > 1 && (
           <div className="vy-seg">
             <button className={`vy-btn icon ${view === "focus" ? "active" : ""}`} title="Edit one frame" onClick={() => setView("focus")}><Icon name="square" /></button>
             <button className={`vy-btn icon ${view === "grid" ? "active" : ""}`} title="See all frames" onClick={() => { canvasApi.current?.stopEditing(); setSelected(null); setView("grid"); }}><Icon name="layout-grid" /></button>
           </div>
         )}
-        {narrow && view === "focus" && (
+        {narrow && view === "focus" && !readOnly && (
           <button className={`vy-btn icon ${inspectorOpen ? "active" : ""}`} title="Properties" onClick={() => setInspectorOpen((o) => !o)}><Icon name="panel-right" /></button>
         )}
         {t.fullscreen?.available && (
           <button className="vy-btn icon" title={fullscreen ? "Exit full screen" : "Full screen"} onClick={() => t.fullscreen!.toggle()}><Icon name={fullscreen ? "minimize-2" : "maximize-2"} /></button>
         )}
         <div style={{ position: "relative" }}>
-          <button className="vy-btn primary" onClick={() => setShowExport((s) => !s)}><Icon name="download" />Download</button>
+          {readOnly ? (
+            <button className="vy-btn primary" onClick={() => browserUrl && t.openLink(browserUrl)} title={browserUrl}><Icon name="external-link" />Edit &amp; download</button>
+          ) : (
+            <button className="vy-btn primary" onClick={() => setShowExport((s) => !s)}><Icon name="download" />Download</button>
+          )}
           {showExport && <ExportMenu t={t} projectId={projectId} frames={bundle.frames} activeId={activeId} kind={bundle.project.kind} beforeExport={flush} onClose={() => setShowExport(false)} />}
         </div>
       </div>
 
+      {readOnly && (
+        <div className="vy-readonly">
+          <span>Preview only — this app doesn't let Vyybe save edits from inside the chat yet.</span>
+          {browserUrl && <button className="vy-btn outline" onClick={() => t.openLink(browserUrl)}><Icon name="external-link" />Open the full editor</button>}
+          {browserUrl && <code title="Copy this link into your browser if the button doesn't open it">{browserUrl.replace(/t=[^&]+/, "t=…")}</code>}
+        </div>
+      )}
       <div className="vy-main">
         <div className="vy-stage" onPointerDown={() => showExport && setShowExport(false)}>
           {view === "grid" ? (
@@ -351,6 +391,7 @@ export function Studio({ t, projectId, initialFrame, fullscreen }: { t: Transpor
                 apiRef={canvasApi}
                 tick={tick}
                 onMount={() => setTick((x) => x + 1)}
+                readOnly={readOnly}
               />
             )
           )}
@@ -365,7 +406,7 @@ export function Studio({ t, projectId, initialFrame, fullscreen }: { t: Transpor
             </div>
           )}
         </div>
-        {view === "focus" && inspectorOpen && active && (
+        {view === "focus" && inspectorOpen && active && !readOnly && (
           <Inspector
             t={t}
             bundle={bundle}
@@ -388,6 +429,7 @@ export function Studio({ t, projectId, initialFrame, fullscreen }: { t: Transpor
           css={bundle.css}
           activeId={activeId}
           onSelect={selectFrame}
+          readOnly={readOnly}
           onReorder={(order) => frameOp("reorder", undefined, { order })}
           onDuplicate={(id) => frameOp("duplicate", id)}
           onDelete={(id) => {
@@ -420,6 +462,20 @@ function GridView({ bundle, activeId, onOpen }: { bundle: Bundle; activeId: stri
           <div className="cap"><b>{i + 1}</b>{f.name}<span style={{ marginLeft: "auto", color: "var(--vy-text3)" }}>{f.width}×{f.height}</span></div>
         </div>
       ))}
+    </div>
+  );
+}
+
+export function OpenInBrowser({ t, url, reason }: { t: Transport; url?: string; reason: string }) {
+  return (
+    <div className="vy-center">
+      <div style={{ maxWidth: 420 }}>
+        <Icon name="external-link" size={22} />
+        <p><b>{reason}</b></p>
+        <p className="vy-hint">Your design is saved on your computer. Open it in your browser to preview, edit and download it.</p>
+        {url && <button className="vy-btn primary" style={{ margin: "8px auto" }} onClick={() => t.openLink(url)}>Open in browser</button>}
+        {url && <p className="vy-hint" style={{ wordBreak: "break-all", userSelect: "all" }}>{url}</p>}
+      </div>
     </div>
   );
 }
